@@ -1,0 +1,850 @@
+<html>
+
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>Random Name Picker</title>
+	<link href="https://fonts.googleapis.com/css?family=Varela+Round" rel="stylesheet" type="text/css">
+	<link rel="stylesheet" href="https://www.flippity.net/tb-Style.css">
+	<link rel="stylesheet" id="bracketStyle" href="https://www.flippity.net/tb-Bracket-Style-16.css">
+	<link href="https://fonts.googleapis.com/css?family=BenchNine" rel="stylesheet" type="text/css">
+	<link rel="icon" href="https://www.flippity.net/images/favicon-32.png" sizes="32x32">
+	<link rel="icon" href="https://www.flippity.net/images/favicon-128.png" sizes="128x128">
+	<link rel="icon" href="https://www.flippity.net/images/favicon-192.png" sizes="192x192">
+	<link rel="apple-touch-icon" href="https://www.flippity.net/images/favicon-152.png" sizes="152x152">
+	<link rel="apple-touch-icon" href="https://www.flippity.net/images/favicon-180.png" sizes="180x180">
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+	<script type="text/javascript">
+
+		var pageURL = window.location.href
+		var encodedURL = encodeURIComponent(pageURL)
+		var origComps = []
+		var refer = ""
+		var content = "Katharine,Daniel,Meryl,Jack,Ingrid,Bette,Spencer,Marlon,Denzel,Cate,Robert,Jane,Dustin,Jessica,Gary"
+		var headerImg = "images/TournamentBracket.png" // failsafe
+		var shuffled = false
+		var seeded = false
+		var cookie = false
+		var log = ""
+		var sheetTitle = ""
+
+		if (content == "") { //get data from Google Sheets pubHTML
+
+			var loaded = false
+			var rawArray = []
+
+			$.get("https://docs.google.com/spreadsheets/d//pubhtml", {}, function (pubHTML) {
+
+				sheetTitle = $(pubHTML).find('li a')[0].innerHTML
+
+				$(pubHTML).find('table.waffle tr').each(function () {
+					var arrayOfThisRow = []
+					var tableData = $(this).find('td')
+					if (tableData.length <= 2) { // 2 columns means it's coming from the 1st three worksheets/tabs
+						tableData.each(function () { arrayOfThisRow.push($(this).text()) })
+						rawArray.push(arrayOfThisRow)
+					}
+				})
+				document.getElementById("orig").style.display = "table-cell"
+				loaded = true
+			})
+		}
+		else {
+			loaded = true // get data from webpage
+		}
+
+		function preLoadContent() {
+			document.getElementById('loader').style.display = "none"
+			pageTitle = "Tournament Bracket"
+			if ("Random Name Picker" != "") { pageTitle = decode("Random Name Picker") }
+
+			if (sheetTitle != "Demo" && sheetTitle != "") {
+				pageTitle = sheetTitle
+			}
+
+			docTitle = "Flippity.net: " + pageTitle
+			encodedDocTitle = encodeURIComponent(docTitle)
+
+			if (content == "") { // coming from spreadsheet
+				loadContent()
+			}
+			else {
+				loadWebContent() // coming from web form
+			}
+			loadSaved()
+		}
+
+		function loadContent() {
+			var i = 2 // need to skip "competitor and there's an empty row in HTML table for some reason
+			var n = 0
+			while (rawArray[i].join("") != "OptionSetting") { // to start of Options
+				if (rawArray[i].join("") != "") { // row isn't blank
+					origComps[n] = rawArray[i][0]
+					n++
+				}
+				i++
+			}
+			var n = 0
+			while (i < rawArray.length) { // rest of array
+				if (rawArray[i][0] == "Header Graphic") { // header graphic option
+					headerImg = rawArray[i][1]
+					break
+				}
+				i++
+			}
+			prepContent()
+		}
+
+		function loadWebContent() {
+			var rawComps = decodeURIComponent(content)
+			origComps = rawComps.split(",")
+			prepContent()
+		}
+
+		function prepContent() {
+			document.getElementById('linkURL').value = pageURL
+			document.title = docTitle
+			document.getElementById('title').innerHTML = pageTitle
+			document.getElementById('printTitle').innerHTML = pageTitle
+			document.getElementById('header').src = headerImg
+
+			for (var i = 0; i < origComps.length; i++) {
+				origComps[i] = origComps[i].replace(/ /g, "\u00A0") // no-break spaces
+			}
+			comps = origComps.slice()
+
+			total = comps.length
+
+			if (shuffled) {
+				shuffleComps()
+			}
+
+			if (total <= 4) {
+				numComps = 4
+				bracket = [1, 4, 2, 3]
+			}
+			else if (total <= 8) {
+				numComps = 8
+				bracket = [1, 8, 4, 5, 3, 6, 2, 7]
+			}
+			else if (total <= 16) {
+				numComps = 16
+				bracket = [1, 16, 8, 9, 5, 12, 4, 13, 6, 11, 3, 14, 7, 10, 2, 15]
+			}
+			else if (total <= 32) {
+				numComps = 32
+				bracket = [1, 32, 16, 17, 9, 24, 8, 25, 4, 29, 13, 20, 12, 21, 5, 28, 2, 31, 15, 18, 10, 23, 7, 26, 3, 30, 14, 19, 11, 22, 6, 27]
+			}
+			else {
+				numComps = 64
+				bracket = [1, 64, 32, 33, 17, 48, 16, 49, 9, 56, 24, 41, 25, 40, 8, 57, 4, 61, 29, 36, 20, 45, 13, 52, 12, 53, 21, 44, 28, 37, 5, 60, 2, 63, 31, 34, 18, 47, 15, 50, 10, 55, 23, 42, 26, 39, 7, 58, 3, 62, 30, 35, 19, 46, 14, 51, 11, 54, 22, 43, 27, 38, 6, 59]
+			}
+
+
+			var structure = ""
+			rows = numComps
+			cols = (Math.log(numComps) / Math.log(2)) * 2 + 1
+			for (r = 1; r < rows; r++) {
+				structure += "<TR>"
+				for (c = 1; c <= cols; c++) {
+					structure += "<TD ID='" + r + "-" + c + "'></TD>"
+				}
+				structure += "</TR>"
+			}
+			document.getElementById('bracket').innerHTML = structure
+			prepBracket()
+			prepByes()
+
+			//QR code link
+			encodedQRurl = "QR.php?u=" + encodedURL + "&p=" + encodeURIComponent(pageTitle)
+			document.getElementById("QR").innerHTML = "<a href='" + encodedQRurl + "' target='_blank'><img src='images/Icon-QR-Code.png' width='20' height='20' border='0' title='Get QR Code'></a>"
+
+			//email link
+			document.getElementById("email").innerHTML = "<a href='mailto:?subject=" + encodedDocTitle + "&body=" + encodedDocTitle + ": " + encodedURL + "' TARGET='_blank'><img src='images/Icon-Email.png' width='22' height='20' border='0' title='Email'></a>"
+
+			//Twitter
+			$.getScript("twitter.js")
+
+			loadComps()
+		}
+
+		function prepByes() {
+			if (seeded) {
+				for (var i = total; i < numComps; i++) {
+					comps.push("***")
+				}
+
+				comps.unshift("") // empty element at position 0 makes seeding easier
+				seedComps()
+			}
+			else {
+				var int = total / (numComps - total)
+				for (var i = 0; i < (numComps - total); i++) {
+					var spot = Math.round(int * i) + i + 1
+					comps.splice(spot, 0, "***")
+				}
+				comps.unshift("") // empty element at position 0 makes seeding easier
+				seeds = comps.slice()
+			}
+		}
+
+		function shuffleComps() {
+			var i = total
+			if (i == 0) return false
+			while (--i) {
+				var j = Math.floor(Math.random() * (i + 1))
+				var tempCompsi = comps[i]
+				var tempCompsj = comps[j]
+				comps[i] = tempCompsj
+				comps[j] = tempCompsi
+			}
+		}
+
+		function seedComps() {
+			seeds = []
+			for (var i = 0; i < numComps; i++) {
+				seeds[i + 1] = comps[bracket[i]]
+			}
+		}
+
+		function prepBracket() {
+
+			for (c = 1; c < cols / 2; c++) {
+				int = Math.pow(2, c)
+				start = Math.pow(2, c - 1)
+				colNum = Math.round(cols / 2) + 1 - c
+				rightCol = cols + 1 - c
+				seed = 1
+				rightSeed = Math.pow(2, colNum - 2) + 1
+				if (c == 1) {
+					cellTitle = "Click to advance"
+				}
+				else {
+					cellTitle = "Click to advance, Ctrl + click to clear"
+				}
+				for (r = start; r < rows; r += int) {
+					document.getElementById(r + "-" + c).className = "line"
+					document.getElementById(r + "-" + c).innerHTML = "<DIV ID='seed" + c + "-" + seed + "' class='line' onClick='change(" + c + "," + seed + ")' TITLE='" + cellTitle + "'></DIV>"
+					document.getElementById(r + "-" + rightCol).className = "line"
+					document.getElementById(r + "-" + rightCol).innerHTML = "<DIV ID='seed" + c + "-" + rightSeed + "' class='right' onClick='change(" + c + "," + rightSeed + ")' TITLE='" + cellTitle + "'></DIV>"
+					seed++
+					rightSeed++
+				}
+			}
+
+			for (c = 1; c < cols / 2 - 1; c++) {
+				int = Math.pow(2, c)
+				start = Math.pow(2, c - 1) + 1
+				rightCol = cols + 1 - c
+				for (r = start; r < rows; r += int * 2) {
+					for (var i = 0; i < int; i++) {
+						document.getElementById(r + i + "-" + c).style.borderRight = "1px solid #000"
+						document.getElementById(r + i + "-" + rightCol).style.borderLeft = "1px solid #000"
+					}
+				}
+			}
+
+			document.getElementById(rows / 2 + "-" + Math.round(cols / 2)).innerHTML = "<DIV class='champBox'><DIV class='champ' ID='seed" + Math.round(cols / 2) + "-1' onClick='erase(" + Math.round(cols / 2) + ",1)' TITLE='Click to clear'></DIV></DIV>"
+		}
+
+		function loadComps() {
+
+			var imageCheck = 0
+			var picFormats = [".gif", ".png", ".jpg", ".jpeg", ".webp"]
+			var otherFormats = ["https://equatio-", "https://docs.google.com/drawings"]
+
+			for (var i = 1; i <= seeds.length - 1; i++) {
+				formattedSeed = seeds[i]
+
+				for (var j = 0; j < picFormats.length; j++) {
+					if (seeds[i].slice(0, 4) == "http" && seeds[i].toLowerCase().slice(-1 * picFormats[j].length) == picFormats[j]) {
+						formattedSeed = "<IMG SRC='" + seeds[i] + "'>"
+						imageCheck = 1
+					}
+				}
+
+				for (var j = 0; j < otherFormats.length; j++) {
+					if (seeds[i].slice(0, otherFormats[j].length) == otherFormats[j]) {
+						formattedSeed = "<IMG SRC='" + seeds[i] + "'>"
+						imageCheck = 1
+					}
+				}
+
+				document.getElementById("seed1-" + i).innerHTML = formattedSeed
+			}
+
+			if (imageCheck) {
+				document.getElementById('bracketStyle').setAttribute('href', 'tb-Bracket-Style-' + numComps + '-IMG.css')
+			}
+			else {
+				document.getElementById('bracketStyle').setAttribute('href', 'tb-Bracket-Style-' + numComps + '.css')
+			}
+
+			autoBye()
+		}
+
+		function change(col, seed) {
+			if (window.event.ctrlKey) {
+				erase(col, seed)
+			}
+			else {
+				advance(col, seed)
+			}
+		}
+
+		function isOdd(num) { return num % 2 }
+
+		function advance(col, seed) {
+			log += col + ":" + seed + ","
+			current = document.getElementById("seed" + col + "-" + seed).innerHTML
+			col++
+			if (isOdd(seed)) {
+				seed++
+			}
+			seed /= 2
+			document.getElementById("seed" + col + "-" + seed).innerHTML = current
+		}
+
+		function erase(col, seed) {
+			log += "-" + col + ":" + seed + ","
+			if (col > 1) {
+				document.getElementById("seed" + col + "-" + seed).innerHTML = ""
+			}
+		}
+
+		function clearBracket() {
+			maxSeed = rows / 2
+			for (c = 2; c <= cols; c++) {
+				for (s = 1; s <= maxSeed; s++) {
+					document.getElementById("seed" + c + "-" + s).innerHTML = ""
+				}
+				maxSeed /= 2
+			}
+		}
+
+		function autoBye() {
+			for (s = 1; s <= rows; s++) {
+				seed = s
+				if (document.getElementById("seed1-" + s).innerHTML == "***") {
+					if (isOdd(seed)) {
+						seed++
+					}
+					else {
+						seed--
+					}
+					advance(1, seed)
+				}
+			}
+		}
+
+		function seedBracket() {
+			seeded = true
+			reloadBracket()
+			log = "seeded,"
+			showSave()
+		}
+
+		function shuffleBracket() {
+			shuffled = true
+			reloadBracket()
+			log = ""
+			hideSave()
+		}
+
+		function reloadBracket() {
+			clearBracket()
+			comps = origComps.slice()
+			prepContent()
+			loadComps()
+			shuffled = false
+			seeded = false
+			log = ""
+			showSave()
+		}
+
+		function saveBracket() {
+			confirm("Flippity would like to save the current bracket configuration on your computer using a Cookie.\nPress OK to continue or Cancel to exit.")
+			var exDate = new Date
+			exDate.setFullYear(exDate.getFullYear() + 1)
+			document.cookie = "log=" + log + ";expires=" + exDate + ";path=/tb.php"
+			cookie = true
+		}
+
+		function clearCookie() {
+			if (cookie) {
+				document.cookie = "log=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/tb.php"
+				cookie = false
+			}
+		}
+
+		function loadSaved() {
+			var cks = decodeURIComponent(document.cookie).split(';')
+			for (var i = 0; i < cks.length; i++) {
+				if (cks[i].includes("log=")) {
+					cookie = true
+					log = cks[i].replace("log=", "")
+					templog = log.split(",")
+					log = ""
+					if (templog[0] == "seeded") {
+						templog.shift()
+						seedBracket()
+					}
+					for (var i = 0; i < templog.length - 1; i++) {
+						var click = templog[i].split(":")
+						var col = click[0].trim()
+						var seed = click[1].trim()
+						if (col > 0) {
+							advance(col, seed)
+						}
+						else {
+							col *= -1
+							erase(col, seed)
+						}
+					}
+					break
+				}
+			}
+			showSave()
+		}
+
+		function showSave() {
+			if ("Katharine,Daniel,Meryl,Jack,Ingrid,Bette,Spencer,Marlon,Denzel,Cate,Robert,Jane,Dustin,Jessica,Gary" == "") {
+				document.getElementById("save-off").style.display = "none"
+				document.getElementById("save-on").style.display = "inline"
+			}
+		}
+
+		function hideSave() {
+			document.getElementById("save-on").style.display = "none"
+			document.getElementById("save-off").style.display = "inline"
+		}
+
+	</script>
+
+</head>
+
+<body cz-shortcut-listen="true">
+
+	<table width="100%" height="100%" cellpadding="0" cellspacing="0" border="0" align="center">
+		<tbody>
+			<tr id="instructions" style="display: none;">
+				<td align="center"><a href="TournamentBracket.htm" target="_blank">Want to Make Your Own Tournament
+						Bracket?</a></td>
+			</tr>
+			<tr height="120">
+				<td align="center">
+					<img id="header" border="0" style="max-height: 80px;"
+						src="https://www.flippity.net/images/TournamentBracket.png">
+				</td>
+			</tr>
+			<tr height="1">
+				<td align="center">
+					<div style="width: 300px; position: relative; z-index: 2;" class="noPrint">
+						<img src="https://www.flippity.net/images/Button-Reload-Small-Red.png" class="button"
+							onclick="reloadBracket(), clearCookie()" title="Reload Bracket">
+						<img src="https://www.flippity.net/images/Button-Seeded.png" class="button"
+							onclick="seedBracket(), clearCookie()" title="Seed Bracket">
+						<img src="https://www.flippity.net/images/Button-Random.png" class="button"
+							onclick="shuffleBracket(), clearCookie()" title="Randomize Bracket">
+						<img src="https://www.flippity.net/images/Button-Print-Small-Red.png" class="button"
+							onclick="print()" title="Print Bracket">
+						<img src="https://www.flippity.net/images/Button-Save-Small-Red.png" id="save-on" class="button"
+							style="display: none;" onclick="saveBracket()" title="Save Bracket">
+						<img src="https://www.flippity.net/images/Button-Save-Small-Disabled.png" id="save-off"
+							class="button" style="cursor: default">
+						<p style="color: #999;">Click to advance, Ctrl + click to clear</p>
+					</div>
+					<div id="loader" style="display: none;"><img
+							src="https://www.flippity.net/images/Loading-Indicator-Lg-Gray.gif"
+							style="margin-top: 150px;"></div>
+				</td>
+			</tr>
+			<tr>
+				<td valign="middle" align="center">
+					<table border="0" class="bracket" id="bracket">
+						<tbody>
+							<tr>
+								<td id="1-1" class="line">
+									<div id="seed1-1" class="line" onclick="change(1,1)" title="Click to advance">
+										Katharine</div>
+								</td>
+								<td id="1-2"></td>
+								<td id="1-3"></td>
+								<td id="1-4"></td>
+								<td id="1-5"></td>
+								<td id="1-6"></td>
+								<td id="1-7"></td>
+								<td id="1-8"></td>
+								<td id="1-9" class="line">
+									<div id="seed1-9" class="right" onclick="change(1,9)" title="Click to advance">
+										Marlon</div>
+								</td>
+							</tr>
+							<tr>
+								<td id="2-1" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="2-2" class="line">
+									<div id="seed2-1" class="line" onclick="change(2,1)"
+										title="Click to advance, Ctrl + click to clear">Katharine</div>
+								</td>
+								<td id="2-3"></td>
+								<td id="2-4"></td>
+								<td id="2-5"></td>
+								<td id="2-6"></td>
+								<td id="2-7"></td>
+								<td id="2-8" class="line">
+									<div id="seed2-5" class="right" onclick="change(2,5)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="2-9" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+							</tr>
+							<tr>
+								<td id="3-1" class="line" style="border-right: 1px solid rgb(0, 0, 0);">
+									<div id="seed1-2" class="line" onclick="change(1,2)" title="Click to advance">***
+									</div>
+								</td>
+								<td id="3-2" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="3-3"></td>
+								<td id="3-4"></td>
+								<td id="3-5"></td>
+								<td id="3-6"></td>
+								<td id="3-7"></td>
+								<td id="3-8" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="3-9" class="line" style="border-left: 1px solid rgb(0, 0, 0);">
+									<div id="seed1-10" class="right" onclick="change(1,10)" title="Click to advance">
+										Denzel</div>
+								</td>
+							</tr>
+							<tr>
+								<td id="4-1"></td>
+								<td id="4-2" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="4-3" class="line">
+									<div id="seed3-1" class="line" onclick="change(3,1)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="4-4"></td>
+								<td id="4-5"></td>
+								<td id="4-6"></td>
+								<td id="4-7" class="line">
+									<div id="seed3-3" class="right" onclick="change(3,3)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="4-8" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="4-9"></td>
+							</tr>
+							<tr>
+								<td id="5-1" class="line">
+									<div id="seed1-3" class="line" onclick="change(1,3)" title="Click to advance">Daniel
+									</div>
+								</td>
+								<td id="5-2" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="5-3" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="5-4"></td>
+								<td id="5-5"></td>
+								<td id="5-6"></td>
+								<td id="5-7" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="5-8" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="5-9" class="line">
+									<div id="seed1-11" class="right" onclick="change(1,11)" title="Click to advance">
+										Cate</div>
+								</td>
+							</tr>
+							<tr>
+								<td id="6-1" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="6-2" class="line" style="border-right: 1px solid rgb(0, 0, 0);">
+									<div id="seed2-2" class="line" onclick="change(2,2)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="6-3" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="6-4"></td>
+								<td id="6-5"></td>
+								<td id="6-6"></td>
+								<td id="6-7" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="6-8" class="line" style="border-left: 1px solid rgb(0, 0, 0);">
+									<div id="seed2-6" class="right" onclick="change(2,6)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="6-9" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+							</tr>
+							<tr>
+								<td id="7-1" class="line" style="border-right: 1px solid rgb(0, 0, 0);">
+									<div id="seed1-4" class="line" onclick="change(1,4)" title="Click to advance">Meryl
+									</div>
+								</td>
+								<td id="7-2"></td>
+								<td id="7-3" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="7-4"></td>
+								<td id="7-5"></td>
+								<td id="7-6"></td>
+								<td id="7-7" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="7-8"></td>
+								<td id="7-9" class="line" style="border-left: 1px solid rgb(0, 0, 0);">
+									<div id="seed1-12" class="right" onclick="change(1,12)" title="Click to advance">
+										Robert</div>
+								</td>
+							</tr>
+							<tr>
+								<td id="8-1"></td>
+								<td id="8-2"></td>
+								<td id="8-3" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="8-4" class="line">
+									<div id="seed4-1" class="line" onclick="change(4,1)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="8-5">
+									<div class="champBox">
+										<div class="champ" id="seed5-1" onclick="erase(5,1)" title="Click to clear">
+										</div>
+									</div>
+								</td>
+								<td id="8-6" class="line">
+									<div id="seed4-2" class="right" onclick="change(4,2)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="8-7" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="8-8"></td>
+								<td id="8-9"></td>
+							</tr>
+							<tr>
+								<td id="9-1" class="line">
+									<div id="seed1-5" class="line" onclick="change(1,5)" title="Click to advance">Jack
+									</div>
+								</td>
+								<td id="9-2"></td>
+								<td id="9-3" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="9-4"></td>
+								<td id="9-5"></td>
+								<td id="9-6"></td>
+								<td id="9-7" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="9-8"></td>
+								<td id="9-9" class="line">
+									<div id="seed1-13" class="right" onclick="change(1,13)" title="Click to advance">
+										Jane</div>
+								</td>
+							</tr>
+							<tr>
+								<td id="10-1" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="10-2" class="line">
+									<div id="seed2-3" class="line" onclick="change(2,3)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="10-3" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="10-4"></td>
+								<td id="10-5"></td>
+								<td id="10-6"></td>
+								<td id="10-7" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="10-8" class="line">
+									<div id="seed2-7" class="right" onclick="change(2,7)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="10-9" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+							</tr>
+							<tr>
+								<td id="11-1" class="line" style="border-right: 1px solid rgb(0, 0, 0);">
+									<div id="seed1-6" class="line" onclick="change(1,6)" title="Click to advance">Ingrid
+									</div>
+								</td>
+								<td id="11-2" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="11-3" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="11-4"></td>
+								<td id="11-5"></td>
+								<td id="11-6"></td>
+								<td id="11-7" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="11-8" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="11-9" class="line" style="border-left: 1px solid rgb(0, 0, 0);">
+									<div id="seed1-14" class="right" onclick="change(1,14)" title="Click to advance">
+										Dustin</div>
+								</td>
+							</tr>
+							<tr>
+								<td id="12-1"></td>
+								<td id="12-2" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="12-3" class="line" style="border-right: 1px solid rgb(0, 0, 0);">
+									<div id="seed3-2" class="line" onclick="change(3,2)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="12-4"></td>
+								<td id="12-5"></td>
+								<td id="12-6"></td>
+								<td id="12-7" class="line" style="border-left: 1px solid rgb(0, 0, 0);">
+									<div id="seed3-4" class="right" onclick="change(3,4)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="12-8" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="12-9"></td>
+							</tr>
+							<tr>
+								<td id="13-1" class="line">
+									<div id="seed1-7" class="line" onclick="change(1,7)" title="Click to advance">Bette
+									</div>
+								</td>
+								<td id="13-2" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="13-3"></td>
+								<td id="13-4"></td>
+								<td id="13-5"></td>
+								<td id="13-6"></td>
+								<td id="13-7"></td>
+								<td id="13-8" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+								<td id="13-9" class="line">
+									<div id="seed1-15" class="right" onclick="change(1,15)" title="Click to advance">
+										Jessica</div>
+								</td>
+							</tr>
+							<tr>
+								<td id="14-1" style="border-right: 1px solid rgb(0, 0, 0);"></td>
+								<td id="14-2" class="line" style="border-right: 1px solid rgb(0, 0, 0);">
+									<div id="seed2-4" class="line" onclick="change(2,4)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="14-3"></td>
+								<td id="14-4"></td>
+								<td id="14-5"></td>
+								<td id="14-6"></td>
+								<td id="14-7"></td>
+								<td id="14-8" class="line" style="border-left: 1px solid rgb(0, 0, 0);">
+									<div id="seed2-8" class="right" onclick="change(2,8)"
+										title="Click to advance, Ctrl + click to clear"></div>
+								</td>
+								<td id="14-9" style="border-left: 1px solid rgb(0, 0, 0);"></td>
+							</tr>
+							<tr>
+								<td id="15-1" class="line" style="border-right: 1px solid rgb(0, 0, 0);">
+									<div id="seed1-8" class="line" onclick="change(1,8)" title="Click to advance">
+										Spencer</div>
+								</td>
+								<td id="15-2"></td>
+								<td id="15-3"></td>
+								<td id="15-4"></td>
+								<td id="15-5"></td>
+								<td id="15-6"></td>
+								<td id="15-7"></td>
+								<td id="15-8"></td>
+								<td id="15-9" class="line" style="border-left: 1px solid rgb(0, 0, 0);">
+									<div id="seed1-16" class="right" onclick="change(1,16)" title="Click to advance">
+										Gary</div>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+
+				</td>
+			</tr>
+			<tr height="1" class="print">
+				<td><img src="https://www.flippity.net/images/Flippitynet-Small-Gray.png" width="80" height="21"
+						align="right">
+					<p id="printTitle" class="printTitle">Random Name Picker</p>
+				</td>
+			</tr>
+			<tr class="noPrint">
+				<td height="1" align="CENTER" valign="MIDDLE" style="border-top: 1px solid #ccc;">
+
+					<script type="text/javascript">
+						function showHide(blk) {
+							if (document.getElementById(blk).style.display == 'none') {
+								document.getElementById(blk).style.display = 'inline'
+							}
+							else {
+								document.getElementById(blk).style.display = 'none'
+							}
+						}
+					</script>
+
+					<table width="100%" border="0" cellspacing="0" celltaddding="0">
+						<tbody>
+							<tr>
+								<td width="33%">
+									<div class="logo"><a href="https://www.flippity.net/"><img
+												src="https://www.flippity.net/images/Flippity-Logo-Small-DkRed.png"
+												alt="Flippity.net" width="67" height="29" border="0" align="left"></a>
+									</div>
+									<h1 id="title" class="title">Random Name Picker</h1>
+								</td>
+								<td width="34%" align="center">
+									<p class="share"><a class="share" href="javascript:showHide('share')"
+											title="Show/Hide Sharing Options"><img
+												src="https://www.flippity.net/images/Share-Icon-Gray.png" width="15"
+												height="16" border="0" align="absmiddle"></a></p>
+								</td>
+								<td width="33%" align="right">
+									<p class="copyright">Copyright© 2017-2022 Flippity.net. All Rights Reserved.</p>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+
+					<div id="share" style="display: none;">
+
+						<img src="https://www.flippity.net/images/Link-Icon.png" width="16" height="16" hspace="10"
+							align="absmiddle">
+						<input id="linkURL" type="text" class="linkBox" onclick="this.select()" value="">
+						<table align="center" class="shareOptions">
+							<tbody>
+								<tr>
+									<td>
+										<script src="https://apis.google.com/js/platform.js" async="" defer=""
+											gapi_processed="true"></script>
+										<div id="___sharetoclassroom_0"
+											style="text-indent: 0px; margin: 0px; padding: 0px; background: transparent; border-style: none; float: none; line-height: normal; font-size: 1px; vertical-align: baseline; display: inline-block; width: 20px; height: 20px;">
+											<iframe ng-non-bindable="" frameborder="0" hspace="0" marginheight="0"
+												marginwidth="0" scrolling="no"
+												style="position: static; top: 0px; width: 20px; margin: 0px; border-style: none; left: 0px; visibility: visible; height: 20px;"
+												tabindex="0" vspace="0" width="100%" id="I0_1674366939103"
+												name="I0_1674366939103"
+												src="https://classroom.google.com/sharewidget?usegapi=1&amp;url=https%3A%2F%2Fwww.flippity.net%2Fma.php%3Fc%3DKatharine%2CDaniel%2CMeryl%2CJack%2CIngrid%2CBette%2CSpencer%2CMarlon%2CDenzel%2CCate%2CRobert%2CJane%2CDustin%2CJessica%2CGary%26t%3DRandom%2520Name%2520Picker&amp;size=20&amp;origin=https%3A%2F%2Fwww.flippity.net&amp;gsrc=3p&amp;ic=1&amp;jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.en.AMZ27oQJoUI.O%2Fd%3D1%2Frs%3DAHpOoo9dsXwz2g0gTMdQFEKa7ZoVvtQf4g%2Fm%3D__features__#_methods=onPlusOne%2C_ready%2C_close%2C_open%2C_resizeMe%2C_renderstart%2Concircled%2Cdrefresh%2Cerefresh&amp;id=I0_1674366939103&amp;_gfid=I0_1674366939103&amp;parent=https%3A%2F%2Fwww.flippity.net&amp;pfname=&amp;rpctoken=24859931"
+												data-gapiattached="true"></iframe>
+										</div>
+									</td>
+									<td id="email"><a
+											href="mailto:?subject=Flippity.net%3A%20Random%20Name%20Picker&amp;body=Flippity.net%3A%20Random%20Name%20Picker: https%3A%2F%2Fwww.flippity.net%2Ftb.php%3Fc%3DKatharine%2CDaniel%2CMeryl%2CJack%2CIngrid%2CBette%2CSpencer%2CMarlon%2CDenzel%2CCate%2CRobert%2CJane%2CDustin%2CJessica%2CGary%26t%3DRandom%2520Name%2520Picker"
+											target="_blank"><img src="https://www.flippity.net/images/Icon-Email.png"
+												width="22" height="20" border="0" title="Email"></a></td>
+									<td id="QR"><a
+											href="QR.php?u=https%3A%2F%2Fwww.flippity.net%2Ftb.php%3Fc%3DKatharine%2CDaniel%2CMeryl%2CJack%2CIngrid%2CBette%2CSpencer%2CMarlon%2CDenzel%2CCate%2CRobert%2CJane%2CDustin%2CJessica%2CGary%26t%3DRandom%2520Name%2520Picker&amp;p=Random%20Name%20Picker"
+											target="_blank"><img src="https://www.flippity.net/images/Icon-QR-Code.png"
+												width="20" height="20" border="0" title="Get QR Code"></a></td>
+									<td><a href="https://twitter.com/intent/tweet?url=https%3A%2F%2Fwww.flippity.net%2Ftb.php%3Fc%3DKatharine%2CDaniel%2CMeryl%2CJack%2CIngrid%2CBette%2CSpencer%2CMarlon%2CDenzel%2CCate%2CRobert%2CJane%2CDustin%2CJessica%2CGary%26t%3DRandom%2520Name%2520Picker&amp;text=Flippity.net%3A%20Random%20Name%20Picker"
+											class="twitter-share"><img
+												src="https://www.flippity.net/images/Icon-Twitter.png" width="20"
+												height="20" alt="Tweet" title="Tweet"></a></td>
+									<td id="orig" style="display: none;"><a
+											href="https://docs.google.com/spreadsheets/d/" target="_blank"><img
+												src="https://www.flippity.net/images/Icon-GoogleSheets.png" width="16"
+												height="20" border="0" title="Original Spreadsheet"></a></td>
+								</tr>
+							</tbody>
+						</table>
+
+					</div>
+
+				</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<script type="text/javascript">
+		if ("" == "1wSiV9Vp8SG7asxpKphAqf7iDWsYWxeTNAM_ZfDBIIYI") { document.getElementById('instructions').style.display = "table-row" }
+		var loads = 0
+		function checkLoad() {
+			loads++
+			if (loaded) {
+				preLoadContent()
+			}
+			else {
+				if (loads < 15) {
+					window.setTimeout(checkLoad, 500) // Check every .5 second if content is loaded
+				}
+				else {
+					window.location.href = "error.php"
+				}
+			}
+		}
+		checkLoad()
+	</script>
+
+
+	<iframe name="oauth2relay395159150" id="oauth2relay395159150"
+		src="https://accounts.google.com/o/oauth2/postmessageRelay?parent=https%3A%2F%2Fwww.flippity.net&amp;jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.en.AMZ27oQJoUI.O%2Fd%3D1%2Frs%3DAHpOoo9dsXwz2g0gTMdQFEKa7ZoVvtQf4g%2Fm%3D__features__#rpctoken=744254036&amp;forcesecure=1"
+		tabindex="-1" aria-hidden="true" style="width: 1px; height: 1px; position: absolute; top: -100px;"></iframe>
+</body>
+
+</html>
